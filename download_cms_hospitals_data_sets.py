@@ -12,7 +12,7 @@ def get_hospital_data_sets():
     resp = requests.get(METASTORE_URL, timeout=60)
     resp.raise_for_status()
     items = resp.json()
-    # Each item in the metastore has a them. we jusst want the items where the theme includes THEME.
+    # Each item in the metastore has a them. we just want the items where the theme includes THEME.
     hospitals = [d for d in items if THEME in d.get("theme", [])]
     return hospitals
 
@@ -38,7 +38,7 @@ def main():
     data_sets = get_hospital_data_sets()
     state = load_state()
     process_list = build_process_list(data_sets, state)
-    
+
     print(f"{len(data_sets)} data sets")
     print(f"{len(process_list)} to process")
 
