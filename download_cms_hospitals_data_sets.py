@@ -2,6 +2,8 @@ import requests
 import json
 from pathlib import Path
 import re
+import io
+import pandas as pd
 
 METASTORE_URL = "https://data.cms.gov/provider-data/api/1/metastore/schemas/dataset/items"
 THEME = "Hospitals"
@@ -58,6 +60,39 @@ def to_snake_case(name, replacements=HEADER_REPLACEMENTS):
     name = re.sub(r"[^a-z0-9]+", "_", name)
     return name.strip("_")
 
+def process_data_set(data_set):
+    # download the files, rename the headers, and save.
+    result = {
+        "identifier": data_set["identifier"],
+        "title": data_set.get("title"),
+        "modified": data_set["modified"],
+        "file_name": None,
+        "success": False,
+        "error": None,
+    }
+    try:
+        url = get_csv_url(data_set)
+
+        file_name = url.split("/")[-1]
+        result["file_name"] = file_name
+
+        resp = requests.get(url, timeout=120)
+        resp.raise_for_status()
+
+        df = pd.read_csv(
+            io.BytesIO(resp.content),
+            dtype=str,
+            keep_default_na=False,
+            encoding="utf-8-sig",
+        )
+        df.columns = [to_snake_case(c) for c in df.columns]
+        df.to_csv(OUTPUT_DIR / file_name, index=False)
+
+        result["success"] = True
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
 def main():
     data_sets = get_hospital_data_sets()
     state = load_state()
@@ -66,8 +101,11 @@ def main():
     print(f"{len(data_sets)} data sets")
     print(f"{len(process_list)} to process")
 
-    for d in process_list:
-        print(f"  {d['identifier']}  {d['modified']}  {get_csv_url(d)}")
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    if process_list:
+        result = process_data_set(process_list[0])
+        print(result)
 
 if __name__ == "__main__":
     main()
