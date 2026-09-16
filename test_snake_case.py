@@ -19,10 +19,11 @@ def test_extra_spaces_collapse():
     assert to_snake_case("  Hospital   Name  ") == "hospital_name"
 
 
-def test_punctuation_collapses_and_trims():
+def test_percent_replacement():
     assert to_snake_case("Score (%)") == "score_percent"
 
-def test_punctuation_collapses_and_trims():
+
+def test_hash_replacement():
     assert to_snake_case("Score (#)") == "score_num"
 
 

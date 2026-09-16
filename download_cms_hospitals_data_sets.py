@@ -23,13 +23,13 @@ HEADER_REPLACEMENTS = {
     "#": "_num_",
 }
 
-MAX_WORKERS = 6 
+MAX_WORKERS = 6
 
 def get_hospital_data_sets():
     resp = requests.get(METASTORE_URL, timeout=60)
     resp.raise_for_status()
     items = resp.json()
-    # Each item in the metastore has a them. we just want the items where the theme includes THEME.
+    # Each item in the metastore has a theme list. We just want the items where the theme includes THEME.
     hospitals = [d for d in items if THEME in d.get("theme", [])]
     return hospitals
 
@@ -85,6 +85,8 @@ def process_data_set(data_set):
     }
     try:
         url = get_csv_url(data_set)
+        if url is None:
+            raise ValueError("No CSV distribution found")
 
         file_name = url.split("/")[-1]
         result["file_name"] = file_name
@@ -99,7 +101,8 @@ def process_data_set(data_set):
             encoding="utf-8-sig",
         )
         df.columns = [to_snake_case(c) for c in df.columns]
-        df.to_csv(OUTPUT_DIR / file_name, index=False)
+        # lineterminator is pinned so Windows and Linux runs produce identical files.
+        df.to_csv(OUTPUT_DIR / file_name, index=False, lineterminator="\n")
 
         result["success"] = True
     except Exception as e:
