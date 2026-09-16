@@ -1,12 +1,22 @@
 import requests
 import json
 from pathlib import Path
+import re
 
 METASTORE_URL = "https://data.cms.gov/provider-data/api/1/metastore/schemas/dataset/items"
 THEME = "Hospitals"
 
 BASE_DIR = Path(__file__).parent
 STATE_FILE = BASE_DIR / "state.json"
+OUTPUT_DIR = BASE_DIR / "output"
+
+HEADER_REPLACEMENTS = {
+    "'": "",
+    "’": "",
+    "&": "_and_",
+    "%": "_percent_",
+    "#": "_num_",
+}
 
 def get_hospital_data_sets():
     resp = requests.get(METASTORE_URL, timeout=60)
@@ -34,6 +44,20 @@ def build_process_list(data_sets, state):
             process_list.append(d)
     return process_list
 
+def get_csv_url(data_set):
+    for dist in data_set.get("distribution", []):
+        if dist.get("mediaType") == "text/csv":
+            return dist.get("downloadURL")
+    return None
+
+def to_snake_case(name, replacements=HEADER_REPLACEMENTS):
+    for old, new in replacements.items():
+        name = name.replace(old, new)
+    name = name.lower()
+    # Any run of characters that isn't a lowercase letter or digit becomes a single underscore
+    name = re.sub(r"[^a-z0-9]+", "_", name)
+    return name.strip("_")
+
 def main():
     data_sets = get_hospital_data_sets()
     state = load_state()
@@ -41,6 +65,9 @@ def main():
 
     print(f"{len(data_sets)} data sets")
     print(f"{len(process_list)} to process")
+
+    for d in process_list:
+        print(f"  {d['identifier']}  {d['modified']}  {get_csv_url(d)}")
 
 if __name__ == "__main__":
     main()
