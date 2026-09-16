@@ -1,9 +1,12 @@
-import requests
-import json
-from pathlib import Path
-import re
 import io
+import json
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
+from pathlib import Path
+
 import pandas as pd
+import requests
 
 METASTORE_URL = "https://data.cms.gov/provider-data/api/1/metastore/schemas/dataset/items"
 THEME = "Hospitals"
@@ -20,6 +23,8 @@ HEADER_REPLACEMENTS = {
     "#": "_num_",
 }
 
+MAX_WORKERS = 6 
+
 def get_hospital_data_sets():
     resp = requests.get(METASTORE_URL, timeout=60)
     resp.raise_for_status()
@@ -35,6 +40,14 @@ def load_state():
         return {}
     with open(STATE_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
+
+def save_state(state):
+    # Write to a temp file first, then swap it in, so a crash mid-write
+    # can't leave a half-written state.json behind.
+    tmp_file = STATE_FILE.with_suffix(".json.tmp")
+    with open(tmp_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    tmp_file.replace(STATE_FILE)
 
 def build_process_list(data_sets, state):
     process_list = []
@@ -103,9 +116,32 @@ def main():
 
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-    if process_list:
-        result = process_data_set(process_list[0])
-        print(result)
+    succeeded = 0
+    failed = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = [executor.submit(process_data_set, d) for d in process_list]
+
+        # Results arrive as each download finishes. Only this main thread
+        # updates and saves state.
+        for future in as_completed(futures):
+            result = future.result()
+            if result["success"]:
+                state[result["identifier"]] = {
+                    "title": result["title"],
+                    "modified": result["modified"],
+                    "file_name": result["file_name"],
+                    "last_processed_at": datetime.now(timezone.utc).isoformat(),
+                }
+                save_state(state)
+                succeeded += 1
+                print(f"  OK    {result['identifier']}  {result['file_name']}")
+            else:
+                failed.append(result)
+                print(f"  FAIL  {result['identifier']}  {result['error']}")
+
+    # --- Summary ---
+    skipped = len(data_sets) - len(process_list)
+    print(f"Done: {succeeded} succeeded, {len(failed)} failed, {skipped} skipped")
 
 if __name__ == "__main__":
     main()
