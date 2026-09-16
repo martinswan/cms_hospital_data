@@ -37,3 +37,11 @@ def test_numbers_kept():
 
 def test_already_snake_case_unchanged():
     assert to_snake_case("facility_id") == "facility_id"
+
+
+def test_ampersand_replacement():
+    assert to_snake_case("Q & A") == "q_and_a"
+
+
+def test_custom_replacements_override_default():
+    assert to_snake_case("Q&A", replacements={}) == "q_a"
