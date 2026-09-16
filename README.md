@@ -41,7 +41,7 @@ pytest
 
 ## Known limitations
 
-- A download that fails is simply retried on the next daily run. This could be improved with some sort of metered retry.
-- Did not implement logging.
-- state.json stores the state as it knows it. If someone modifies that file or deletes the existing output, it will not be accurate.
+- A download that fails is simply retried on the next daily run. This could be improved with retry logic within the script.
+- Logging could be added instead of the print commands.
+- state.json stores the state as it knows it. If someone modifies that file or deletes the existing output, it will not be accurate. Deleting state.json forces a full re-download.
 - Collisions in file names and column names can occur, but this was not handled in this code because it was not observed here. All file names were unique and all column names are unique within each file. However, this could be added as a defensive measure.
